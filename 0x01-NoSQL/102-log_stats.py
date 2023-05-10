@@ -1,47 +1,47 @@
 #!/usr/bin/env python3
-"""
-Provide some stats about Nginx logs stored in MongoDB
-Database: logs, Collection: nginx, Display same as example
-first line: x logs, x number of documents in this collection
-second line: Methods
-5 lines with method = ["GET", "POST", "PUT", "PATCH", "DELETE"]
-one line with method=GET, path=/status
-improve by adding top 10 most present IPs in collection nginx
-database logs
-"""
+"""Improved log stats module"""
 from pymongo import MongoClient
 
 
-METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
-PIPE = [{"$group": {"_id": "$ip", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}, {"$limit": 10}]
-
-
-def log_stats(mongo_collection, option=None):
-    """
-    Prototype: def log_stats(mongo_collection, option=None):
-    Provide some stats about Nginx logs stored in MongoDB
-    """
-    items = {}
-    if option:
-        value = mongo_collection.count_documents(
-            {"method": {"$regex": option}})
-        print(f"\tmethod {option}: {value}")
-        return
-
-    result = mongo_collection.count_documents(items)
-    print(f"{result} logs")
-    print("Methods:")
-    for method in METHODS:
-        log_stats(nginx_collection, method)
-    status_check = mongo_collection.count_documents({"path": "/status"})
-    print(f"{status_check} status check")
-    print("IPs:")
-
-    for ip in mongo_collection.aggregate(PIPE):
-        print(f"\t{ip.get('_id')}: {ip.get('count')}")
-
-
 if __name__ == "__main__":
-    nginx_collection = MongoClient('mongodb://127.0.0.1:27017').logs.nginx
-    log_stats(nginx_collection)
+    client = MongoClient('mongodb://127.0.0.1:27017')
+    db = client.logs.nginx
+
+    num_logs = db.count_documents({})
+    print(f"{num_logs} logs")
+
+    get = db.count_documents({'method': 'GET'})
+    post = db.count_documents({'method': 'POST'})
+    put = db.count_documents({'method': 'PUT'})
+    patch = db.count_documents({'method': 'PATCH'})
+    delete = db.count_documents({'method': 'DELETE'})
+
+    print("Methods:")
+    print(f"\tmethod GET: {get}")
+    print(f"\tmethod POST: {post}")
+    print(f"\tmethod PUT: {put}")
+    print(f"\tmethod PATCH: {patch}")
+    print(f"\tmethod DELETE: {delete}")
+
+    status = db.count_documents({'method': 'GET', 'path': '/status'})
+    print(f"{status} status check")
+
+    print("IPs:")
+    ips = db.aggregate([
+        {"$group":
+            {
+                "_id": "$ip",
+                "count": {"$sum": 1}
+            }
+         },
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+        {"$project": {
+            "_id": 0,
+            "ip": "$_id",
+            "count": 1
+        }}
+    ])
+
+    for ip in ips:
+        print(f"\t{ip.get('ip')}: {ip.get('count')}")
